@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>匿名校园 - JSU树屋</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { background: linear-gradient(135deg, #0f172a, #1e2937); }
+    .chat-box { height: 65vh; overflow-y: auto; scrollbar-width: thin; }
+    .modal { animation: fadeIn 0.2s; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  </style>
+</head>
+<body class="text-white">
+  <div class="max-w-6xl mx-auto p-4 flex gap-4">
+    <!-- 主聊天区 -->
+    <div class="flex-1">
+      <!-- 标题 -->
+      <div class="text-center py-6">
+        <h1 class="text-4xl font-bold flex items-center justify-center gap-3">🏫 匿名校园 <span class="text-yellow-400 text-2xl">JSU</span></h1>
+        <p class="text-slate-400">不留痕迹，只聊心事</p >
+      </div>
+
+      <!-- 登录面板 -->
+      <div id="joinPanel" class="bg-slate-900 rounded-3xl p-8 max-w-md mx-auto">
+        <input id="nickname" type="text" placeholder="你的昵称（可留空随机）" class="w-full bg-slate-800 text-white px-5 py-4 rounded-2xl mb-4 focus:outline-none focus:ring-2 focus:ring-yellow-400">
+        
+        <!-- 性别选择 -->
+        <div class="mb-6">
+          <p class="text-slate-400 mb-3">选择性别（聊天时显示图标）</p >
+          <div class="flex gap-6 justify-center">
+            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="gender" value="male" checked><span class="text-3xl">♂</span><span class="text-white">男生</span></label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="gender" value="female"><span class="text-3xl">♀</span><span class="text-white">女生</span></label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="gender" value="other"><span class="text-3xl">⚪</span><span class="text-white">保密</span></label>
+          </div>
+        </div>
+        
+        <input id="room" type="text" value="JSU" placeholder="房间名（默认JSU）" class="w-full bg-slate-800 text-white px-5 py-4 rounded-2xl mb-4 focus:outline-none">
+        <input id="password" type="password" placeholder="校园邀请码（默认：123456）" class="w-full bg-slate-800 text-white px-5 py-4 rounded-2xl mb-6 focus:outline-none">
+        
+        <button onclick="joinRoom()" class="w-full bg-yellow-400 hover:bg-yellow-300 text-black font-bold py-4 rounded-2xl text-xl transition">进入匿名聊天室</button>
+      </div>
+
+      <!-- 聊天界面 -->
+      <div id="chatPanel" class="hidden">
+        <div class="flex justify-between items-center mb-4 bg-slate-900 rounded-3xl p-4">
+          <div class="flex items-center gap-3">
+            <span id="currentRoom" class="font-bold text-xl"></span>
+            <span id="onlineCount" class="bg-green-500 text-xs px-3 py-1 rounded-full">0 人在线</span>
+          </div>
+          <button onclick="leaveRoom()" class="text-red-400 hover:text-red-300">退出</button>
+        </div>
+
+        <!-- 消息区 -->
+        <div id="messages" class="chat-box bg-slate-900 rounded-3xl p-6 mb-4 space-y-4"></div>
+
+        <!-- 输入框 -->
+        <div class="flex gap-3">
+          <input id="messageInput" type="text" placeholder="说点什么..." class="flex-1 bg-slate-800 text-white px-6 py-4 rounded-3xl focus:outline-none">
+          <button onclick="sendMessage()" class="bg-yellow-400 hover:bg-yellow-300 text-black px-8 rounded-3xl font-bold">发送</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 侧边栏：在线用户 + 私聊入口 -->
+    <div class="w-72 bg-slate-900 rounded-3xl p-4 hidden lg:flex flex-col">
+      <h2 class="font-bold mb-4 text-yellow-400">在线用户</h2>
+      <div id="userList" class="flex-1 space-y-2 overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- 讨论面板（Modal） -->
+  <div id="threadModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center modal">
+    <div class="bg-slate-900 rounded-3xl w-full max-w-lg mx-4 p-6">
+      <div class="flex justify-between mb-4">
+        <h3 class="font-bold text-xl">讨论串</h3>
+        <button onclick="closeThreadModal()" class="text-slate-400 hover:text-white">关闭</button>
+      </div>
+      <div id="threadMessages" class="chat-box bg-slate-800 rounded-2xl p-4 mb-4 max-h-96 space-y-3"></div>
+      <div class="flex gap-3">
+        <input id="threadInput" type="text" placeholder="回复这条讨论..." class="flex-1 bg-slate-700 text-white px-5 py-3 rounded-2xl">
+        <button onclick="sendThreadReply()" class="bg-yellow-400 text-black px-6 rounded-2xl font-bold">回复</button>
+      </div>
+    </div>
+  </div>
+
+ <!-- 私聊面板（Modal） -->
+  <div id="privateModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center modal">
+    <div class="bg-slate-900 rounded-3xl w-full max-w-lg mx-4 p-6">
+      <div class="flex justify-between mb-4">
+        <h3 id="privateTitle" class="font-bold text-xl"></h3>
+        <button onclick="closePrivateModal()" class="text-slate-400 hover:text-white">关闭</button>
+      </div>
+      <div id="privateMessages" class="chat-box bg-slate-800 rounded-2xl p-4 mb-4 max-h-96 space-y-3"></div>
+      <div class="flex gap-3">
+        <input id="privateInput" type="text" placeholder="输入私聊内容..." class="flex-1 bg-slate-700 text-white px-5 py-3 rounded-2xl">
+        <button onclick="sendPrivateMessage()" class="bg-yellow-400 text-black px-6 rounded-2xl font-bold">发送</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let socket, currentNickname, currentRoom, currentThreadParent = null, currentPrivateTarget = null;
+    let allMessages = [];
+    let dmConversations = {}; // {targetId: [messages]}
+
+    function joinRoom() {
+      const nickname = document.getElementById('nickname').value.trim() || '匿名用户' + Math.floor(Math.random()*999);
+      const room = document.getElementById('room').value.trim() || 'taichung';
+      const password = document.getElementById('password').value.trim();
+      const gender = document.querySelector('input[name="gender"]:checked').value;
+
+      socket = io();
+      socket.emit('joinRoom', { room, nickname, password, gender });
+
+      socket.on('joined', (data) => {
+        currentNickname = data.nickname;
+        currentRoom = room;
+        document.getElementById('joinPanel').classList.add('hidden');
+        document.getElementById('chatPanel').classList.remove('hidden');
+        document.getElementById('currentRoom').textContent = `🏫 ${room}`;
+      });
+
+      socket.on('loadMessages', (msgs) => {
+        allMessages = msgs;
+        renderMessages();
+      });
+
+      socket.on('message', (msg) => {
+        allMessages.push(msg);
+        renderMessages();
+      });
+
+      socket.on('userList', (users) => {
+        document.getElementById('onlineCount').textContent = `${users.length} 人在线`;
+        renderUserList(users);
+      });
+// 私聊接收
+      socket.on('privateMessageReceived', (msg) => {
+        if (!dmConversations[currentPrivateTarget]) dmConversations[currentPrivateTarget] = [];
+        dmConversations[currentPrivateTarget].push({ ...msg, isFromMe: false });
+        if (currentPrivateTarget) renderPrivateMessages();
+      });
+
+      socket.on('privateMessageSent', (msg) => {
+        if (!dmConversations[msg.toId]) dmConversations[msg.toId] = [];
+        dmConversations[msg.toId].push({ ...msg, isFromMe: true });
+      });
+
+      socket.on('error', (msg) => alert(msg));
+    }
+
+    function renderMessages() {
+      const container = document.getElementById('messages');
+      container.innerHTML = '';
+      allMessages.forEach(msg => {
+        const div = document.createElement('div');
+        if (msg.type === 'system') {
+          div.className = 'text-center text-slate-400 text-sm';
+          div.textContent = msg.text;
+        } else {
+          const icon = msg.gender === 'male' ? '♂' : msg.gender === 'female' ? '♀' : '⚪';
+          const isReply = msg.parentId ? ' (回复)' : '';
+          div.className = `flex flex-col ${msg.parentId ? 'ml-8 border-l-2 border-yellow-400 pl-4' : ''}`;
+          div.innerHTML = `
+            <div class="flex items-center gap-2">
+              <span class="text-yellow-400 text-sm">\( {icon} \){msg.nickname}${isReply}</span>
+              <button onclick="openThread('\( {msg.id}', ' \){msg.nickname}')" class="ml-auto text-xs bg-slate-700 hover:bg-yellow-400 hover:text-black px-3 py-1 rounded-2xl">回复</button>
+            </div>
+            <div class="bg-slate-800 px-5 py-3 rounded-3xl max-w-[80%]">${msg.text}</div>
+            <span class="text-xs text-slate-500 mt-1">${msg.timestamp}</span>
+          `;
+        }
+        container.appendChild(div);
+      });
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('messageInput');
+      if (!input.value.trim()) return;
+      socket.emit('chatMessage', { text: input.value.trim() });
+      input.value = '';
+    }
+
+    // 打开讨论面板
+    function openThread(parentId, parentNick) {
+      currentThreadParent = parentId;
+      document.getElementById('threadModal').classList.remove('hidden');
+      const threadContainer = document.getElementById('threadMessages');
+      threadContainer.innerHTML = `<div class="text-yellow-400">正在加载讨论...</div>`;
+      
+      const replies = allMessages.filter(m => m.parentId === parentId);
+      threadContainer.innerHTML = '';
+      // 显示主消息
+      const parentMsg = allMessages.find(m => m.id === parentId);
+      if (parentMsg) {
+        const pDiv = document.createElement('div');
+        pDiv.className = 'bg-slate-700 p-4 rounded-3xl mb-4';
+        pDiv.innerHTML = `<span class="text-yellow-400">\( {parentMsg.nickname}</span><div> \){parentMsg.text}</div>`;
+        threadContainer.appendChild(pDiv);
+      }
+// 显示回复
+      replies.forEach(reply => {
+        const rDiv = document.createElement('div');
+        rDiv.className = 'flex flex-col ml-4';
+        rDiv.innerHTML = `
+          <span class="text-yellow-400 text-sm">${reply.nickname}</span>
+          <div class="bg-slate-800 px-5 py-3 rounded-3xl">${reply.text}</div>
+          <span class="text-xs text-slate-500">${reply.timestamp}</span>
+        `;
+        threadContainer.appendChild(rDiv);
+      });
+    }
+
+    function sendThreadReply() {
+      const input = document.getElementById('threadInput');
+      if (!input.value.trim() || !currentThreadParent) return;
+      socket.emit('chatMessage', { text: input.value.trim(), parentId: currentThreadParent });
+      input.value = '';
+      // 刷新讨论面板
+      setTimeout(() => { openThread(currentThreadParent, ''); }, 300);
+    }
+
+    function closeThreadModal() {
+      document.getElementById('threadModal').classList.add('hidden');
+      currentThreadParent = null;
+    }
+
+    // 渲染在线用户列表（支持私聊）
+    function renderUserList(users) {
+      const container = document.getElementById('userList');
+      container.innerHTML = '';
+      users.forEach(user => {
+        if (user.id === socket.id) return; // 不显示自己
+        const div = document.createElement('div');
+        div.className = 'flex items-center gap-3 bg-slate-800 hover:bg-slate-700 p-3 rounded-2xl cursor-pointer';
+        const icon = user.gender === 'male' ? '♂' : user.gender === 'female' ? '♀' : '⚪';
+        div.innerHTML = `<span class="text-2xl">\( {icon}</span><span class="flex-1"> \){user.nickname}</span>`;
+        div.onclick = () => openPrivateChat(user.id, user.nickname);
+        container.appendChild(div);
+      });
+    }
+
+    function openPrivateChat(targetId, targetNick) {
+      currentPrivateTarget = targetId;
+      document.getElementById('privateTitle').innerHTML = `私聊 <span class="text-yellow-400">${targetNick}</span>`;
+      document.getElementById('privateModal').classList.remove('hidden');
+      renderPrivateMessages();
+    }
+
+    function renderPrivateMessages() {
+      const container = document.getElementById('privateMessages');
+      container.innerHTML = '';
+      const msgs = dmConversations[currentPrivateTarget] || [];
+      msgs.forEach(msg => {
+        const div = document.createElement('div');
+        div.className = msg.isFromMe ? 'flex justify-end' : 'flex justify-start';
+        div.innerHTML = `
+          <div class="max-w-[75%]">
+            <div class="\( {msg.isFromMe ? 'bg-yellow-400 text-black' : 'bg-slate-700'} px-5 py-3 rounded-3xl"> \){msg.text}</div>
+            <span class="text-xs text-slate-500 mt-1 block">${msg.timestamp}</span>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function sendPrivateMessage() {
+      const input = document.getElementById('privateInput');
+      if (!input.value.trim() || !currentPrivateTarget) return;
+      socket.emit('privateMessage', { targetId: currentPrivateTarget, text: input.value.trim() });
+      input.value = '';
+      renderPrivateMessages();
+    }
+
+    function closePrivateModal() {
+      document.getElementById('privateModal').classList.add('hidden');
+      currentPrivateTarget = null;
+    }
+
+    function leaveRoom() {
+      if (socket) socket.disconnect();
+      location.reload();
+    }
+
+    // Enter 发送
+    document.addEventListener('keypress', e => { if (e.key === 'Enter') { if (document.getElementById('privateModal').classList.contains('hidden') === false) sendPrivateMessage(); else sendMessage(); } });
+  </script>
+</body>
+</html>
