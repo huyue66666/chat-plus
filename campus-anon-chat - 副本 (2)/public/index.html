@@ -201,7 +201,7 @@
         pDiv.innerHTML = `<span class="text-yellow-400">\( {parentMsg.nickname}</span><div> \){parentMsg.text}</div>`;
         threadContainer.appendChild(pDiv);
       }
-// 显示回复
+      // 显示回复
       replies.forEach(reply => {
         const rDiv = document.createElement('div');
         rDiv.className = 'flex flex-col ml-4';
@@ -237,7 +237,7 @@
         const div = document.createElement('div');
         div.className = 'flex items-center gap-3 bg-slate-800 hover:bg-slate-700 p-3 rounded-2xl cursor-pointer';
         const icon = user.gender === 'male' ? '♂' : user.gender === 'female' ? '♀' : '⚪';
-        div.innerHTML = `<span class="text-2xl">\( {icon}</span><span class="flex-1"> \){user.nickname}</span>`;
+        div.innerHTML = `<span class="text-2xl">($ {icon}</span><span class="flex-1"> \)${user.nickname}</span>`;
         div.onclick = () => openPrivateChat(user.id, user.nickname);
         container.appendChild(div);
       });
