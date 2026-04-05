@@ -165,14 +165,13 @@
           const isReply = msg.parentId ? ' (回复)' : '';
           div.className = `flex flex-col ${msg.parentId ? 'ml-8 border-l-2 border-yellow-400 pl-4' : ''}`;
           div.innerHTML = `
-            <div class="flex items-center gap-2">
-              <span class="text-yellow-400 text-sm">\( {icon} \){msg.nickname}${isReply}</span>
-              <button onclick="openThread('\( {msg.id}', ' \){msg.nickname}')" class="ml-auto text-xs bg-slate-700 hover:bg-yellow-400 hover:text-black px-3 py-1 rounded-2xl">回复</button>
-            </div>
-            <div class="bg-slate-800 px-5 py-3 rounded-3xl max-w-[80%]">${msg.text}</div>
-            <span class="text-xs text-slate-500 mt-1">${msg.timestamp}</span>
-          `;
-        }
+        <span class="text-yellow-400 text-sm">(${icon}) ${msg.nickname}</span>
+        <div class="bg-slate-800 px-5 py-3 rounded-3xl max-w-[80%] text-white mt-1">
+            ${msg.text}
+        </div>
+        <span class="text-xs text-slate-500 mt-1">${msg.timestamp}</span>
+    `;
+}
         container.appendChild(div);
       });
       container.scrollTop = container.scrollHeight;
